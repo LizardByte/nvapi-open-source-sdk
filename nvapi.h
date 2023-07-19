@@ -24,7 +24,7 @@
 \*****************************************************************************/
 ///////////////////////////////////////////////////////////////////////////////
 //
-// Date: Oct 6, 2022 
+// Date: Nov 8, 2022 
 // File: nvapi.h
 //
 // NvAPI provides an interface to NVIDIA devices. This file contains the 
@@ -888,6 +888,7 @@ typedef unsigned short   NvU16;
 typedef unsigned char    NvU8;
 typedef signed   char    NvS8;
 typedef float            NvF32;
+typedef double           NvF64;
 
 /*!
  * Macro to convert NvU32 to NvF32.
@@ -940,6 +941,7 @@ NV_DECLARE_HANDLE(NvAudioHandle);                  //!< NVIDIA HD Audio Device
 NV_DECLARE_HANDLE(Nv3DVPContextHandle);            //!< A handle for a 3D Vision Pro (3DVP) context
 NV_DECLARE_HANDLE(Nv3DVPTransceiverHandle);        //!< A handle for a 3DVP RF transceiver
 NV_DECLARE_HANDLE(Nv3DVPGlassesHandle);            //!< A handle for a pair of 3DVP RF shutter glasses
+NV_DECLARE_HANDLE(NvPcfClientHandle);              //!< A handle for NVPCF clients
 
 typedef void* StereoHandle;                        //!< A stereo handle, that corresponds to the device interface
 
@@ -1205,6 +1207,8 @@ typedef enum _NvAPI_Status
     NVAPI_INVALID_PC                            = -238,    //!< While executing a kernel, the device program counter wrapped its address space
     NVAPI_LAUNCH_FAILED                         = -239,    //!< An exception occurred on the device while executing a kernel
     NVAPI_NOT_PERMITTED                         = -240,    //!< Attempted operation is not permitted.
+    NVAPI_CALLBACK_ALREADY_REGISTERED           = -241,    //!< The callback function has already been registered.
+    NVAPI_CALLBACK_NOT_FOUND                    = -242,    //!< The callback function is not found or not registered.
 } NvAPI_Status;
 
 
@@ -1856,7 +1860,6 @@ typedef struct
 
 //! \ingroup dispcontrol
 #define NV_VIEW_TARGET_INFO_VER  MAKE_NVAPI_VERSION(NV_VIEW_TARGET_INFO,2)
-
 
 //! \ingroup dispcontrol
 __nvapi_deprecated_function("Do not use this function - it is deprecated in release 290. Instead, use NvAPI_DISP_SetDisplayConfig.")
@@ -3106,10 +3109,10 @@ NVAPI_INTERFACE NvAPI_GetGPUIDfromPhysicalGPU(NvPhysicalGpuHandle hPhysicalGpu, 
 //!
 //! \since Release: 170
 //!
-//! RETURN STATUS: NVAPI_INVALID_ARGUMENT: pCount is NULL
-//!                NVAPI_OK: *pCount is set
-//!                NVAPI_NVIDIA_DEVICE_NOT_FOUND: no NVIDIA GPU driving a display was found
-//!                NVAPI_EXPECTED_PHYSICAL_GPU_HANDLE: hPhysicalGpu was not a physical GPU handle
+//! \retval NVAPI_INVALID_ARGUMENT: pCount is NULL
+//! \retval NVAPI_OK: *pCount is set
+//! \retval NVAPI_NVIDIA_DEVICE_NOT_FOUND: no NVIDIA GPU driving a display was found
+//! \retval NVAPI_EXPECTED_PHYSICAL_GPU_HANDLE: hPhysicalGpu was not a physical GPU handle
 //!
 //! \ingroup   gpu
 ///////////////////////////////////////////////////////////////////////////////
@@ -3274,29 +3277,31 @@ typedef struct _NV_GPU_DISPLAYIDS
 //
 // FUNCTION NAME: NvAPI_GPU_GetConnectedDisplayIds
 //
-//! \code
+//! 
 //!   DESCRIPTION: Due to space limitation NvAPI_GPU_GetConnectedOutputs can return maximum 32 devices, but
 //!                this is no longer true for DPMST. NvAPI_GPU_GetConnectedDisplayIds will return all
 //!                the connected display devices in the form of displayIds for the associated hPhysicalGpu.
 //!                This function can accept set of flags to request cached, uncached, sli and lid to get the connected devices.
 //!                Default value for flags will be cached .
+//!
 //! HOW TO USE: 1) for each PhysicalGpu, make a call to get the number of connected displayId's
 //!                using NvAPI_GPU_GetConnectedDisplayIds by passing the pDisplayIds as NULL
 //!                On call success:
+//!
 //!             2) If pDisplayIdCount is greater than 0, allocate memory based on pDisplayIdCount. Then make a call NvAPI_GPU_GetConnectedDisplayIds to populate DisplayIds.
 //!                However, if pDisplayIdCount is 0, do not make this call.
 //! SUPPORTED OS:  Windows 7 and higher
 //!
-//! PARAMETERS:     hPhysicalGpu (IN)  - GPU selection
-//!                 flags        (IN)  - One or more defines from NV_GPU_CONNECTED_IDS_FLAG_* as valid flags.
-//!                 pDisplayIds  (IN/OUT) - Pointer to an NV_GPU_DISPLAYIDS struct, each entry represents a one displayID and its attributes
-//!                 pDisplayIdCount(OUT)- Number of displayId's.
+//! \param [in]     hPhysicalGpu   - GPU selection
+//! \param [in]     flags          - One or more defines from NV_GPU_CONNECTED_IDS_FLAG_* as valid flags.
+//! \param [in,out]     pDisplayIds   - Pointer to an NV_GPU_DISPLAYIDS struct, each entry represents a one displayID and its attributes
+//! \param [in]     pDisplayIdCount - Number of displayId's.
 //!
-//! RETURN STATUS: NVAPI_INVALID_ARGUMENT: hPhysicalGpu or pDisplayIds or pDisplayIdCount is NULL
-//!                NVAPI_OK: *pDisplayIds contains a set of GPU-output identifiers
-//!                NVAPI_NVIDIA_DEVICE_NOT_FOUND: no NVIDIA GPU driving a display was found
-//!                NVAPI_EXPECTED_PHYSICAL_GPU_HANDLE: hPhysicalGpu was not a physical GPU handle
-//! \endcode
+//! \retval  NVAPI_INVALID_ARGUMENT: hPhysicalGpu or pDisplayIds or pDisplayIdCount is NULL
+//! \retval  NVAPI_OK: *pDisplayIds contains a set of GPU-output identifiers
+//! \retval  NVAPI_NVIDIA_DEVICE_NOT_FOUND: no NVIDIA GPU driving a display was found
+//! \retval  NVAPI_EXPECTED_PHYSICAL_GPU_HANDLE: hPhysicalGpu was not a physical GPU handle
+//! 
 //! \ingroup gpu
 ///////////////////////////////////////////////////////////////////////////////
 NVAPI_INTERFACE NvAPI_GPU_GetConnectedDisplayIds(__in NvPhysicalGpuHandle hPhysicalGpu,  __inout_ecount_part_opt(*pDisplayIdCount, *pDisplayIdCount) NV_GPU_DISPLAYIDS* pDisplayIds, __inout NvU32* pDisplayIdCount, __in NvU32 flags);
@@ -3982,6 +3987,26 @@ NVAPI_INTERFACE NvAPI_GPU_GetBoardInfo(NvPhysicalGpuHandle hPhysicalGpu, NV_BOAR
 
 
 
+///////////////////////////////////////////////////////////////////////////////
+//
+// FUNCTION NAME: NvAPI_GPU_GetRamBusWidth
+//
+//!  This function returns the width of the GPU's RAM memory bus.
+//!
+//! SUPPORTED OS:  Windows 7 and higher
+//!
+//!
+//! TCC_SUPPORTED
+//!
+//! \since Release: 100
+//!
+//!  \return NVAPI_ERROR or NVAPI_OK
+//!  \ingroup gpu
+///////////////////////////////////////////////////////////////////////////////
+NVAPI_INTERFACE NvAPI_GPU_GetRamBusWidth(NvPhysicalGpuHandle hPhysicalGpu, NvU32 *pBusWidth);
+
+
+
 //! Used in NvAPI_GPU_GetArchInfo()
 typedef struct
 {
@@ -4197,7 +4222,7 @@ NVAPI_INTERFACE NvAPI_GPU_GetArchInfo(NvPhysicalGpuHandle hPhysicalGpu, NV_GPU_A
 //  These APIs allow I2C access only to DDC monitors
 
 
-//! \addtogroup i2capi
+//! \ingroup i2capi
 //! @{
 #define NVAPI_MAX_SIZEOF_I2C_DATA_BUFFER    4096
 #define NVAPI_MAX_SIZEOF_I2C_REG_ADDRESS       4
@@ -4510,7 +4535,7 @@ NVAPI_INTERFACE NvAPI_GPU_GetHDCPSupportStatus(NvPhysicalGpuHandle hPhysicalGpu,
 
 
 
-//! \addtogroup gpucuda
+//! \ingroup gpucuda
 //! @{
 
 //! defgroup nvcomp_gpu_top NVIDIA Compute GPU Topology Flags
@@ -4578,7 +4603,7 @@ typedef NV_COMPUTE_GPU_TOPOLOGY_V2 NV_COMPUTE_GPU_TOPOLOGY;
 //!
 //! \since Release: 180
 //!
-//! \param [inout]      pComputeTopo  Pointer to the structure NV_COMPUTE_GPU_TOPOLOGY.
+//! \param [in,out]      pComputeTopo  Pointer to the structure NV_COMPUTE_GPU_TOPOLOGY.
 //!
 //! \retval ::NVAPI_OK                           The request was completed successfully.
 //!                                              The gpuCount indicates if one or more compute-capable GPUs are found.
@@ -5353,7 +5378,7 @@ typedef NV_LOGICAL_GPU_DATA_V1     NV_LOGICAL_GPU_DATA;
 //! \since Release: 421
 //!
 //! \param [in]    hLogicalGpu            logical GPU Handle.
-//! \param [inout] pLogicalGpuData        Pointer to NV_LOGICAL_GPU_DATA structure.
+//! \param [in,out] pLogicalGpuData        Pointer to NV_LOGICAL_GPU_DATA structure.
 //!
 //! \return  This API can return any of the error codes enumerated in #NvAPI_Status. If there are return error codes with
 //!          specific meaning for this API, they are listed below.
@@ -5363,7 +5388,7 @@ typedef NV_LOGICAL_GPU_DATA_V1     NV_LOGICAL_GPU_DATA;
 NVAPI_INTERFACE NvAPI_GPU_GetLogicalGpuInfo(__in NvLogicalGpuHandle hLogicalGpu, __inout NV_LOGICAL_GPU_DATA *pLogicalGpuData);
 
 
-//! \addtogroup gridlicense
+//! \ingroup gridlicense
 //! @{
 
 //! Maximum  number of supported Feature License
@@ -5386,6 +5411,7 @@ typedef enum _NV_LICENSE_FEATURE_TYPE
     NV_LICENSE_FEATURE_NVIDIA_RTX = 2,
     NV_LICENSE_FEATURE_QUADRO    = NV_LICENSE_FEATURE_NVIDIA_RTX, //!< DEPRECATED name - do not use
     NV_LICENSE_FEATURE_GAMING    = 3,
+    NV_LICENSE_FEATURE_COMPUTE   = 4,
 } NV_LICENSE_FEATURE_TYPE;
 
 //! Used in NV_LICENSE_FEATURE_DETAILS
@@ -5559,7 +5585,7 @@ typedef NV_GPU_VR_READY_V1               NV_GPU_VR_READY;
 //!
 //! \since Release: 465
 //!
-//! \param [inout] pGpuVrReadyData - This structure will be filled with required information.
+//! \param [in,out] pGpuVrReadyData - This structure will be filled with required information.
 //!
 //! \return  This API can return any of the error codes enumerated in
 //!          #NvAPI_Status.  If there are return error codes with specific
@@ -8489,10 +8515,85 @@ typedef struct _NV_HDR_CAPABILITIES_V2
 
 } NV_HDR_CAPABILITIES_V2;
 
+typedef struct _NV_HDR_CAPABILITIES_V3
+{
+    NvU32 version;                                                  //!< Version of this structure
+
+    NvU32 isST2084EotfSupported                 :1;                 //!< HDMI2.0a UHDA HDR with ST2084 EOTF (CEA861.3). Boolean: 0 = not supported, 1 = supported;
+    NvU32 isTraditionalHdrGammaSupported        :1;                 //!< HDMI2.0a traditional HDR gamma (CEA861.3). Boolean: 0 = not supported, 1 = supported;
+    NvU32 isEdrSupported                        :1;                 //!< Extended Dynamic Range on SDR displays. Boolean: 0 = not supported, 1 = supported;
+    NvU32 driverExpandDefaultHdrParameters      :1;                 //!< If set, driver will expand default (=zero) HDR capabilities parameters contained in display's EDID.
+                                                                    //!< Boolean: 0 = report actual HDR parameters, 1 = expand default HDR parameters;
+    NvU32 isTraditionalSdrGammaSupported        :1;                 //!< HDMI2.0a traditional SDR gamma (CEA861.3). Boolean: 0 = not supported, 1 = supported;
+    NvU32 isDolbyVisionSupported                :1;                 //!< Dolby Vision Support. Boolean: 0 = not supported, 1 = supported;
+    NvU32 isHdr10PlusSupported                  :1;                 //!< HDR10+ (Sink Side Tonemapping) is supported
+    NvU32 isHdr10PlusGamingSupported            :1;                 //!< HDR10+ Gaming, a.k.a HDR10+ Source Side Tonemapping (SSTM), is supported
+    NvU32 reserved                              :24;
+
+    NV_STATIC_METADATA_DESCRIPTOR_ID static_metadata_descriptor_id; //!< Static Metadata Descriptor Id (0 for static metadata type 1)
+
+    struct                                                          //!< Static Metadata Descriptor Type 1, CEA-861.3, SMPTE ST2086
+    {
+        NvU16    displayPrimary_x0;                                 //!< x coordinate of color primary 0 (e.g. Red) of the display ([0x0000-0xC350] = [0.0 - 1.0])
+        NvU16    displayPrimary_y0;                                 //!< y coordinate of color primary 0 (e.g. Red) of the display ([0x0000-0xC350] = [0.0 - 1.0])
+
+        NvU16    displayPrimary_x1;                                 //!< x coordinate of color primary 1 (e.g. Green) of the display ([0x0000-0xC350] = [0.0 - 1.0])
+        NvU16    displayPrimary_y1;                                 //!< y coordinate of color primary 1 (e.g. Green) of the display ([0x0000-0xC350] = [0.0 - 1.0])
+
+        NvU16    displayPrimary_x2;                                 //!< x coordinate of color primary 2 (e.g. Blue) of the display ([0x0000-0xC350] = [0.0 - 1.0])
+        NvU16    displayPrimary_y2;                                 //!< y coordinate of color primary 2 (e.g. Blue) of the display ([0x0000-0xC350] = [0.0 - 1.0])
+
+        NvU16    displayWhitePoint_x;                               //!< x coordinate of white point of the display ([0x0000-0xC350] = [0.0 - 1.0])
+        NvU16    displayWhitePoint_y;                               //!< y coordinate of white point of the display ([0x0000-0xC350] = [0.0 - 1.0])
+
+        NvU16    desired_content_max_luminance;                     //!< Maximum display luminance = desired max luminance of HDR content ([0x0000-0xFFFF] = [0.0 - 65535.0] cd/m^2, in units of 1 cd/m^2)
+        NvU16    desired_content_min_luminance;                     //!< Minimum display luminance = desired min luminance of HDR content ([0x0000-0xFFFF] = [0.0 - 6.55350] cd/m^2, in units of 0.0001 cd/m^2)
+        NvU16    desired_content_max_frame_average_luminance;       //!< Desired maximum Frame-Average Light Level (MaxFALL) of HDR content ([0x0000-0xFFFF] = [0.0 - 65535.0] cd/m^2, in units of 1 cd/m^2)
+    }display_data;
+
+    struct
+    {
+        NvU32 VSVDB_version               : 3;                //!< Version of Vendor Data block,Version 0: 25 bytes  Version 1: 14 bytes
+        NvU32 dm_version                  : 8;                //!< Upper Nibble represents major version of Display Management(DM) while lower represents minor version of DM
+        NvU32 supports_2160p60hz          : 1;                //!< If set sink is capable of 4kx2k @ 60hz
+        NvU32 supports_YUV422_12bit       : 1;                //!< If set, sink is capable of YUV422-12 bit
+        NvU32 supports_global_dimming     : 1;                //!< Indicates if sink supports global dimming
+        NvU32 colorimetry                 : 1;                //!< If set indicates sink supports DCI P3 colorimetry, REc709 otherwise
+        NvU32 supports_backlight_control  : 2;                //!< This is set when sink is using lowlatency interface and can control its backlight.
+        NvU32 backlt_min_luma             : 2;                //!< It is the level for Backlt min luminance value (reserved = 0x3 in latest DV spec).
+        NvU32 interface_supported_by_sink : 2;                //!< Indicates the interface (standard or low latency) supported by the sink.
+        NvU32 supports_10b_12b_444        : 2;                //!< It is set when interface supported is low latency, it tells whether it supports 10 bit or 12 bit RGB 4:4:4 or YCbCr 4:4:4 or both.
+        NvU32 parity                      : 1;                //!< resolution and frame-rate relationships between Dolby Vision and other video processing
+        NvU32 reserved                    : 8;                //!< Should be set to zero
+
+                                                              //!< All values below are encoded use DolbyVisionHDMITransmissionSpecification document to decode
+        NvU16 target_min_luminance;                           //!< Represents min luminance level of Sink
+        NvU16 target_max_luminance;                           //!< Represents max luminance level of sink
+        NvU16 cc_red_x;                                       //!< Red primary chromaticity coordinate x
+        NvU16 cc_red_y;                                       //!< Red primary chromaticity coordinate y
+        NvU16 cc_green_x;                                     //!< Green primary chromaticity coordinate x
+        NvU16 cc_green_y;                                     //!< Green primary chromaticity coordinate Y
+        NvU16 cc_blue_x;                                      //!< Blue primary chromaticity coordinate x
+        NvU16 cc_blue_y;                                      //!< Blue primary chromaticity coordinate y
+        NvU16 cc_white_x;                                     //!< White primary chromaticity coordinate x
+        NvU16 cc_white_y;                                     //!< White primary chromaticity coordinate y
+    }dv_static_metadata;
+
+    struct
+    {
+        NvU16 application_version               : 2;          //!< Application version of HDR10+ Vendor Specific Video Data Block
+        NvU16 full_frame_peak_luminance_index   : 2;          //!< Full frame peak luminance index
+        NvU16 peak_luminance_index              : 4;          //!< Peak luminance index
+        NvU16 reserved                          : 8;
+    }hdr10plus_vsvdb;
+
+} NV_HDR_CAPABILITIES_V3;
+
 #define NV_HDR_CAPABILITIES_VER1  MAKE_NVAPI_VERSION(NV_HDR_CAPABILITIES_V1, 1)
 #define NV_HDR_CAPABILITIES_VER2  MAKE_NVAPI_VERSION(NV_HDR_CAPABILITIES_V2, 2)
-#define NV_HDR_CAPABILITIES_VER   NV_HDR_CAPABILITIES_VER2
-typedef NV_HDR_CAPABILITIES_V2    NV_HDR_CAPABILITIES;
+#define NV_HDR_CAPABILITIES_VER3  MAKE_NVAPI_VERSION(NV_HDR_CAPABILITIES_V3, 3)
+#define NV_HDR_CAPABILITIES_VER   NV_HDR_CAPABILITIES_VER3
+typedef NV_HDR_CAPABILITIES_V3    NV_HDR_CAPABILITIES;
 
 //! \ingroup dispcontrol
 //! @{
@@ -8634,8 +8735,220 @@ typedef NV_HDR_COLOR_DATA_V2    NV_HDR_COLOR_DATA;
 ///////////////////////////////////////////////////////////////////////////////
 NVAPI_INTERFACE NvAPI_Disp_HdrColorControl(__in NvU32 displayId, __inout NV_HDR_COLOR_DATA *pHdrColorData);
 
-//! @}
+typedef enum _NV_COLORSPACE_TYPE
+{
+    NV_COLORSPACE_sRGB      = 0,    //!< sRGB IEC 61966-2-1:1999 == DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709
+    NV_COLORSPACE_xRGB      = 1,    //!< FP16 linear with sRGB color primaries == DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709
+    NV_COLORSPACE_REC2100   = 12,   //!< ITU-R Rec BT.2100 (HDR10) == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020
+} NV_COLORSPACE_TYPE;
 
+///////////////////////////////////////////////////////////////////////////////
+// FUNCTION NAME:   NvAPI_Disp_SetSourceColorSpace
+//
+//! \fn NvAPI_Disp_SetSourceColorSpace(__in NvU32 displayId, __in NV_SOURCE_COLORSPACE colorSpace)
+//! DESCRIPTION:    This API sets colorspace of the source identified by the process id of the caller
+//!
+//! SUPPORTED OS:  Windows 7 and higher
+//!
+//!
+//! \since Release: 525
+//!
+//! \param [in] displayId               Monitor Identifier
+//! \param [in] colorSpaceType          Source colorspace type
+//!
+//! \return    This API can return any of the error codes enumerated in #NvAPI_Status. If there are return error codes with
+//!            specific meaning for this API, they are listed below.
+//
+///////////////////////////////////////////////////////////////////////////////
+NVAPI_INTERFACE NvAPI_Disp_SetSourceColorSpace(__in NvU32 displayId, __in NV_COLORSPACE_TYPE colorSpaceType);
+
+#define NV_SOURCE_PID_CURRENT 0
+
+///////////////////////////////////////////////////////////////////////////////
+// FUNCTION NAME:   NvAPI_Disp_GetSourceColorSpace
+//
+//! \fn NvAPI_Disp_GetSourceColorSpace(__in NvU32 displayId, __inout NV_SOURCE_COLORSPACE* pColorSpace)
+//! DESCRIPTION:    This API gets colorspace of the source identified by the process id.
+//!                 Set sourcePID = NV_SOURCE_PID_CURRENT to use the process id of the caller.
+//! SUPPORTED OS:  Windows 7 and higher
+//!
+//!
+//! \since Release: 525
+//!
+//! \param [in]  displayId              Monitor Identifier
+//! \param [out] pColorSpaceType        Source colorspace type
+//! \param [in]  sourcePID              Source process id (PID)
+//!
+//! \return    This API can return any of the error codes enumerated in #NvAPI_Status. If there are return error codes with
+//!            specific meaning for this API, they are listed below.
+//
+///////////////////////////////////////////////////////////////////////////////
+NVAPI_INTERFACE NvAPI_Disp_GetSourceColorSpace(__in NvU32 displayId, __inout NV_COLORSPACE_TYPE* pColorSpaceType, NvU64 sourcePID);
+
+typedef struct _NV_HDR_METADATA_V1
+{
+    NvU32    version;                                          //!< Version of this structure
+
+    NvU16    displayPrimary_x0;                                //!< x coordinate of color primary 0 (e.g. Red) of mastering display ([0x0000-0xC350] = [0.0 - 1.0])
+    NvU16    displayPrimary_y0;                                //!< y coordinate of color primary 0 (e.g. Red) of mastering display ([0x0000-0xC350] = [0.0 - 1.0])
+
+    NvU16    displayPrimary_x1;                                //!< x coordinate of color primary 1 (e.g. Green) of mastering display ([0x0000-0xC350] = [0.0 - 1.0])
+    NvU16    displayPrimary_y1;                                //!< y coordinate of color primary 1 (e.g. Green) of mastering display ([0x0000-0xC350] = [0.0 - 1.0])
+
+    NvU16    displayPrimary_x2;                                //!< x coordinate of color primary 2 (e.g. Blue) of mastering display ([0x0000-0xC350] = [0.0 - 1.0])
+    NvU16    displayPrimary_y2;                                //!< y coordinate of color primary 2 (e.g. Blue) of mastering display ([0x0000-0xC350] = [0.0 - 1.0])
+
+    NvU16    displayWhitePoint_x;                              //!< x coordinate of white point of mastering display ([0x0000-0xC350] = [0.0 - 1.0])
+    NvU16    displayWhitePoint_y;                              //!< y coordinate of white point of mastering display ([0x0000-0xC350] = [0.0 - 1.0])
+
+    NvU16    max_display_mastering_luminance;                  //!< Maximum display mastering luminance ([0x0000-0xFFFF] = [0.0 - 65535.0] cd/m^2, in units of 1 cd/m^2)
+    NvU16    min_display_mastering_luminance;                  //!< Minimum display mastering luminance ([0x0000-0xFFFF] = [0.0 - 6.55350] cd/m^2, in units of 0.0001 cd/m^2)
+
+    NvU16    max_content_light_level;                          //!< Maximum Content Light level (MaxCLL) ([0x0000-0xFFFF] = [0.0 - 65535.0] cd/m^2, in units of 1 cd/m^2)
+    NvU16    max_frame_average_light_level;                    //!< Maximum Frame-Average Light Level (MaxFALL) ([0x0000-0xFFFF] = [0.0 - 65535.0] cd/m^2, in units of 1 cd/m^2)
+} NV_HDR_METADATA_V1;
+
+#define NV_HDR_METADATA_VER1 MAKE_NVAPI_VERSION(NV_HDR_METADATA_V1, 1)
+#define NV_HDR_METADATA_VER NV_HDR_METADATA_VER1
+typedef NV_HDR_METADATA_V1 NV_HDR_METADATA;
+
+///////////////////////////////////////////////////////////////////////////////
+// FUNCTION NAME:   NvAPI_Disp_SetSourceHdrMetadata
+//
+//! \fn NvAPI_Disp_SetSourceHdrMetadata(__in NvU32 displayId, __in NV_HDR_METADATA* pMetadata)
+//! DESCRIPTION:    This API sets HDR metadata of the source identified by the process id of the caller
+//!
+//! SUPPORTED OS:  Windows 7 and higher
+//!
+//!
+//! \since Release: 525
+//!
+//! \param [in] displayId       Monitor Identifier
+//! \param [in] pMetadata       HDR metadata
+//!
+//! \return    This API can return any of the error codes enumerated in #NvAPI_Status. If there are return error codes with
+//!            specific meaning for this API, they are listed below.
+//
+///////////////////////////////////////////////////////////////////////////////
+NVAPI_INTERFACE NvAPI_Disp_SetSourceHdrMetadata(__in NvU32 displayId, __in NV_HDR_METADATA* pMetadata);
+
+///////////////////////////////////////////////////////////////////////////////
+// FUNCTION NAME:   NvAPI_Disp_GetSourceHdrMetadata
+//
+//! \fn NvAPI_NvAPI_Disp_GetSourceHdrMetadata(__in NvU32 displayId, __inout NV_HDR_METADATA* pMetadata)
+//! DESCRIPTION:    This API gets HDR metadata of the source identified by the process id of the caller
+//!
+//! SUPPORTED OS:  Windows 7 and higher
+//!
+//!
+//! \since Release: 525
+//!
+//! \param [in]  displayId      Monitor Identifier
+//! \param [out] pMetadata      HDR metadata
+//! \param [in]  sourcePID      Source process id (PID)
+//!
+//! \return    This API can return any of the error codes enumerated in #NvAPI_Status. If there are return error codes with
+//!            specific meaning for this API, they are listed below.
+//
+///////////////////////////////////////////////////////////////////////////////
+NVAPI_INTERFACE NvAPI_Disp_GetSourceHdrMetadata(__in NvU32 displayId, __inout NV_HDR_METADATA* pMetadata, NvU64 sourcePID);
+
+typedef enum _NV_DISPLAY_OUTPUT_MODE
+{
+    NV_DISPLAY_OUTPUT_MODE_SDR              = 0,
+    NV_DISPLAY_OUTPUT_MODE_HDR10            = 1,
+    NV_DISPLAY_OUTPUT_MODE_HDR10PLUS_GAMING = 2
+} NV_DISPLAY_OUTPUT_MODE;
+
+///////////////////////////////////////////////////////////////////////////////
+// FUNCTION NAME:   NvAPI_Disp_SetOutputMode
+//
+//! \fn NvAPI_Disp_SetOutputMode(__in NvU32 displayId, __inout NV_DISPLAY_OUTPUT_MODE* pDisplayMode)
+//! DESCRIPTION:    This API sets display output mode and returns the display output mode used by the OS before the API call.
+//!                 Only one application at a time can override OS display output mode.
+//!
+//! SUPPORTED OS:  Windows 7 and higher
+//!
+//!
+//! \since Release: 525
+//!
+//! \param [in]      displayId      Display identifier
+//! \param [in, out] pDisplayMode   New/original display output mode
+//!
+//! \return    This API can return any of the error codes enumerated in #NvAPI_Status. If there are return error codes with
+//!            specific meaning for this API, they are listed below.
+//!
+//! \retval ::NVAPI_RESOURCE_IN_USE     the output mode can't be changed as it is already overriden by another application.
+//
+///////////////////////////////////////////////////////////////////////////////
+NVAPI_INTERFACE NvAPI_Disp_SetOutputMode(__in NvU32 displayId, __inout NV_DISPLAY_OUTPUT_MODE* pDisplayMode);
+
+///////////////////////////////////////////////////////////////////////////////
+// FUNCTION NAME:   NvAPI_Disp_GetOutputMode
+//
+//! \fn NvAPI_Disp_GetOutputMode(__in NvU32 displayId, __inout NV_DISPLAY_OUTPUT_MODE* pDisplayMode)
+//! DESCRIPTION:    This API gets display output mode.
+//!
+//! SUPPORTED OS:  Windows 7 and higher
+//!
+//!
+//! \since Release: 525
+//!
+//! \param [in]  displayId      Display identifier
+//! \param [out] pDisplayMode   Current display output mode
+//!
+//! \return    This API can return any of the error codes enumerated in #NvAPI_Status. If there are return error codes with
+//!            specific meaning for this API, they are listed below.
+//
+///////////////////////////////////////////////////////////////////////////////
+NVAPI_INTERFACE NvAPI_Disp_GetOutputMode(__in NvU32 displayId, __inout NV_DISPLAY_OUTPUT_MODE* pDisplayMode);
+
+typedef enum _NV_HDR_TONEMAPPING_METHOD
+{
+    NV_HDR_TONEMAPPING_APP  = 0,
+    NV_HDR_TONEMAPPING_GPU  = 1
+} NV_HDR_TONEMAPPING_METHOD;
+
+///////////////////////////////////////////////////////////////////////////////
+// FUNCTION NAME:   NvAPI_Disp_SetHdrToneMapping
+//
+//! \fn NvAPI_Disp_SetHdrToneMapping(__in NvU32 displayId, __in NV_HDR_TONEMAPPING_METHOD hdrTonemapping)
+//! DESCRIPTION:    This API sets HDR tonemapping method for the display
+//!
+//! SUPPORTED OS:  Windows 7 and higher
+//!
+//!
+//! \since Release: 525
+//!
+//! \param [in] displayId       Display identifier
+//! \param [in] hdrTonemapping  HDR tonemapping method
+//!
+//! \return    This API can return any of the error codes enumerated in #NvAPI_Status. If there are return error codes with
+//!            specific meaning for this API, they are listed below.
+//
+///////////////////////////////////////////////////////////////////////////////
+NVAPI_INTERFACE NvAPI_Disp_SetHdrToneMapping(__in NvU32 displayId, __in NV_HDR_TONEMAPPING_METHOD hdrTonemapping);
+
+///////////////////////////////////////////////////////////////////////////////
+// FUNCTION NAME:   NvAPI_Disp_GetHdrToneMapping
+//
+//! \fn NvAPI_Disp_GetHdrToneMapping(__in NvU32 displayId, __inout NV_HDR_TONEMAPPING_METHOD* pHdrTonemapping)
+//! DESCRIPTION:    This API gets HDR tonemapping method for the display.
+//!
+//! SUPPORTED OS:  Windows 7 and higher
+//!
+//!
+//! \since Release: 525
+//!
+//! \param [in]  displayId          display identifier
+//! \param [out] pHdrTonemapping    HDR tonemapping method
+//!
+//! \return    This API can return any of the error codes enumerated in #NvAPI_Status. If there are return error codes with
+//!            specific meaning for this API, they are listed below.
+//
+///////////////////////////////////////////////////////////////////////////////
+NVAPI_INTERFACE NvAPI_Disp_GetHdrToneMapping(__in NvU32 displayId, __inout NV_HDR_TONEMAPPING_METHOD* pHdrTonemapping);
+//! @}
 
 //! \ingroup dispcontrol
 //! Used in NvAPI_DISP_GetTiming().
@@ -9221,7 +9534,7 @@ NVAPI_INTERFACE NvAPI_DISP_GetDisplayConfig(__inout NvU32 *pathInfoCount, __out_
 //!
 //! \param [in]      pathInfoCount   Number of supplied elements in pathInfo
 //! \param [in]      pathInfo        Array of path information
-//! \param [in]      flags           Flags for applying settings
+//! \param [in]      flags           A bitwise OR of supported flags from NV_DISPLAYCONFIG_FLAGS. 
 //!
 //! \retval ::NVAPI_OK - completed request
 //! \retval ::NVAPI_API_NOT_INTIALIZED - NVAPI not initialized
@@ -18908,10 +19221,11 @@ typedef enum _NVAPI_D3D12_RAYTRACING_OPACITY_MICROMAP_CAPS
 //! \ingroup dx
 typedef enum _NVAPI_D3D12_RAYTRACING_CAPS_TYPE
 {
-    NVAPI_D3D12_RAYTRACING_CAPS_TYPE_THREAD_REORDERING =  0,
-    NVAPI_D3D12_RAYTRACING_CAPS_TYPE_OPACITY_MICROMAP  =  1,
-    NVAPI_D3D12_RAYTRACING_CAPS_TYPE_INVALID           = -1
+    NVAPI_D3D12_RAYTRACING_CAPS_TYPE_THREAD_REORDERING      =  0,
+    NVAPI_D3D12_RAYTRACING_CAPS_TYPE_OPACITY_MICROMAP       =  1,
+    NVAPI_D3D12_RAYTRACING_CAPS_TYPE_INVALID                = -1
 } NVAPI_D3D12_RAYTRACING_CAPS_TYPE;
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 // FUNCTION NAME: NvAPI_D3D12_GetRaytracingCaps
@@ -19072,9 +19386,10 @@ NVAPI_INTERFACE NvAPI_D3D12_GetRaytracingOpacityMicromapArrayPrebuildInfo(
 //! \ingroup dx
 typedef enum _NVAPI_D3D12_PIPELINE_CREATION_STATE_FLAGS
 {
-    NVAPI_D3D12_PIPELINE_CREATION_STATE_FLAGS_ENABLE_OMM_SUPPORT = NV_BIT(0) //!< [in] Change whether raytracing pipelines are created with support for Opacity Micromaps.
-                                                                             //!<      If a triangle with an OMM is encountered during traversal and the pipeline was not created with support for them, behavior is undefined.
-                                                                             //!<      Support should only be enabled if there are OMMs present, since it may incur a small penalty on traversal performance overall.
+    NVAPI_D3D12_PIPELINE_CREATION_STATE_FLAGS_NONE               = 0,         //!< [in] No pipeline flags.
+    NVAPI_D3D12_PIPELINE_CREATION_STATE_FLAGS_ENABLE_OMM_SUPPORT = NV_BIT(0), //!< [in] Change whether raytracing pipelines are created with support for Opacity Micromaps.
+                                                                              //!<      If a triangle with an OMM is encountered during traversal and the pipeline was not created with support for them, behavior is undefined.
+                                                                              //!<      Support should only be enabled if there are OMMs present, since it may incur a small penalty on traversal performance overall.
 } NVAPI_D3D12_PIPELINE_CREATION_STATE_FLAGS;
 
 //! State used when creating new pipelines.
@@ -19126,13 +19441,13 @@ NVAPI_INTERFACE NvAPI_D3D12_SetCreatePipelineStateOptions(
 typedef enum _NVAPI_D3D12_SERIALIZED_DATA_TYPE_EX
 {
     // D3D12_SERIALIZED_DATA_TYPE flags
-    NVAPI_D3D12_SERIALIZED_DATA_RAYTRACING_ACCELERATION_STRUCTURE_EX = 0x0, //!< Serialized data contains a raytracing acceleration structure.
-                                                                            //!< Starting from offset 0, the first bytes of the serialized acceleration structure can be reinterpreted as \c D3D12_SERIALIZED_RAYTRACING_ACCELERATION_STRUCTURE_HEADER.
-                                                                            //!< That structure contains the identifier to be passed along to NvAPI_D3D12_CheckDriverMatchingIdentifierEx().
+    NVAPI_D3D12_SERIALIZED_DATA_RAYTRACING_ACCELERATION_STRUCTURE_EX = 0x0,      //!< Serialized data contains a raytracing acceleration structure.
+                                                                                 //!< Starting from offset 0, the first bytes of the serialized acceleration structure can be reinterpreted as \c D3D12_SERIALIZED_RAYTRACING_ACCELERATION_STRUCTURE_HEADER.
+                                                                                 //!< That structure contains the identifier to be passed along to NvAPI_D3D12_CheckDriverMatchingIdentifierEx().
 
     // NVAPI_D3D12_SERIALIZED_DATA_TYPE_EX specific flags
-    NVAPI_D3D12_SERIALIZED_DATA_RAYTRACING_OPACITY_MICROMAP_ARRAY_EX = 0x1  //!< Data blob contains an OMM Array.
-                                                                            //!< Starting from offset 0, the first bytes of the OMM Array can be reinterpreted as \c D3D12_SERIALIZED_DATA_DRIVER_MATCHING_IDENTIFIER.
+    NVAPI_D3D12_SERIALIZED_DATA_RAYTRACING_OPACITY_MICROMAP_ARRAY_EX = 0x1,      //!< Data blob contains an OMM Array.
+                                                                                 //!< Starting from offset 0, the first bytes of the OMM Array can be reinterpreted as \c D3D12_SERIALIZED_DATA_DRIVER_MATCHING_IDENTIFIER.
 
 } NVAPI_D3D12_SERIALIZED_DATA_TYPE_EX;
 
@@ -19199,7 +19514,7 @@ typedef enum _NVAPI_D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS_EX
                                                                                                              //!< Specifying this flag may result in larger AS size and may reduce traversal performance.
     NVAPI_D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_DISABLE_OMMS_EX              = NV_BIT(7), //!< Only applicable for BLAS builds. If enabled, any instances referencing this BLAS are allowed to disable the OMM test through the #NVAPI_D3D12_RAYTRACING_INSTANCE_FLAG_DISABLE_OMMS_EX flag.
                                                                                                              //!< Specifying this build flag may result in some reductions in traversal performance.
-    NVAPI_D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_OMM_OPACITY_STATES_UPDATE_EX = NV_BIT(8)  //!< The acceleration structure (AS) supports updating OMM data (encoded opacity values).
+    NVAPI_D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_OMM_OPACITY_STATES_UPDATE_EX = NV_BIT(8), //!< The acceleration structure (AS) supports updating OMM data (encoded opacity values).
                                                                                                              //!< Specifying this flag may reduce traversal performance.
 
 } NVAPI_D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS_EX;
@@ -19215,8 +19530,10 @@ typedef enum _NVAPI_D3D12_RAYTRACING_GEOMETRY_TYPE_EX
     NVAPI_D3D12_RAYTRACING_GEOMETRY_TYPE_PROCEDURAL_PRIMITIVE_AABBS_EX = 0x1, //!< This geometry is made of axis-aligned bounding boxes (AABBs).
 
     // NVAPI_D3D12_RAYTRACING_GEOMETRY_TYPE_EX specific flags
-    NVAPI_D3D12_RAYTRACING_GEOMETRY_TYPE_OMM_TRIANGLES_EX              = 0x2  //!< Shares most fields with the basic triangle geometry type, but allows an OMM Array to be attached to the geometry.
+    NVAPI_D3D12_RAYTRACING_GEOMETRY_TYPE_OMM_TRIANGLES_EX              = 0x2, //!< Shares most fields with the basic triangle geometry type, but allows an OMM Array to be attached to the geometry.
                                                                               //!< The basic triangle type and this OMM-enabled type geometries may be mixed in the same BLAS build.
+
+
 } NVAPI_D3D12_RAYTRACING_GEOMETRY_TYPE_EX;
 
 //! If a triangle has a uniform OMM state in a BLAS build, it is preferable to signal this explicitly rather than attaching a single state OMM.
@@ -19236,16 +19553,16 @@ typedef enum _NVAPI_D3D12_RAYTRACING_OPACITY_MICROMAP_SPECIAL_INDEX
 //! \ingroup dx
 typedef struct _NVAPI_D3D12_RAYTRACING_GEOMETRY_OMM_ATTACHMENT_DESC
 {
-    D3D12_GPU_VIRTUAL_ADDRESS_AND_STRIDE                        opacityMicromapIndexBuffer;  //!< Optional buffer specifying which OMM index to use for each triangle; if \c NULL, there is a 1:1 mapping between input triangles and OMM Array entries.
-                                                                                             //!< Special values can be used to encode OMMs with uniform state for individual triangles (see #NVAPI_D3D12_RAYTRACING_OPACITY_MICROMAP_SPECIAL_INDEX).
-                                                                                             //!< For BLAS updates, this input buffer must match that of the original build if the #NVAPI_D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_OMM_UPDATE_EX build flag is not set.
-    DXGI_FORMAT                                                 opacityMicromapIndexFormat;  //!< Format of \c opacityMicromapIndexBuffer, either \c DXGI_FORMAT_R32_UINT or \c DXGI_FORMAT_R16_UINT.
-    NvU32                                                       opacityMicromapBaseLocation; //!< Constant added to all non-negative OMM indices in \p opacityMicromapIndexBuffer.
-    D3D12_GPU_VIRTUAL_ADDRESS                                   opacityMicromapArray;        //!< Pointer to an OMM Array used by this geometry; it may be set to \c NULL if no non-uniform OMMs are used.
-                                                                                             //!< Unlike vertex, index, and transform buffers, this resource is dereferenced during raytracing.
+    D3D12_GPU_VIRTUAL_ADDRESS_AND_STRIDE                       opacityMicromapIndexBuffer;  //!< Optional buffer specifying which OMM index to use for each triangle; if \c NULL, there is a 1:1 mapping between input triangles and OMM Array entries.
+                                                                                            //!< Special values can be used to encode OMMs with uniform state for individual triangles (see #NVAPI_D3D12_RAYTRACING_OPACITY_MICROMAP_SPECIAL_INDEX).
+                                                                                            //!< For BLAS updates, this input buffer must match that of the original build if the #NVAPI_D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_OMM_UPDATE_EX build flag is not set.
+    DXGI_FORMAT                                                opacityMicromapIndexFormat;  //!< Format of \c opacityMicromapIndexBuffer, either \c DXGI_FORMAT_R32_UINT or \c DXGI_FORMAT_R16_UINT.
+    NvU32                                                      opacityMicromapBaseLocation; //!< Constant added to all non-negative OMM indices in \p opacityMicromapIndexBuffer.
+    D3D12_GPU_VIRTUAL_ADDRESS                                  opacityMicromapArray;        //!< Pointer to an OMM Array used by this geometry; it may be set to \c NULL if no non-uniform OMMs are used.
+                                                                                            //!< Unlike vertex, index, and transform buffers, this resource is dereferenced during raytracing.
 
-    NvU32                                                      numOMMUsageCounts;            //!< Number of OMM usage count entries in the \p pOMMUsageCounts array.
-    const NVAPI_D3D12_RAYTRACING_OPACITY_MICROMAP_USAGE_COUNT* pOMMUsageCounts;              //!< Usage counts for each subdivision level and format combination across all the OMM entries referred-to by the OMM index buffer specified by this geometry.
+    NvU32                                                      numOMMUsageCounts;           //!< Number of OMM usage count entries in the \p pOMMUsageCounts array.
+    const NVAPI_D3D12_RAYTRACING_OPACITY_MICROMAP_USAGE_COUNT* pOMMUsageCounts;             //!< Usage counts for each subdivision level and format combination across all the OMM entries referred-to by the OMM index buffer specified by this geometry.
 
 } NVAPI_D3D12_RAYTRACING_GEOMETRY_OMM_ATTACHMENT_DESC;
 
@@ -19656,15 +19973,11 @@ typedef enum _NVAPI_RAY_FLAGS_EX
     NVAPI_RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES_EX      = NV_BIT( 9), //!< Never intersect AABB geometries.
 
     // NVAPI_RAY_FLAGS_EX specific flags
-    NVAPI_RAY_FLAG_FORCE_OMM_2_STATE_EX                = NV_BIT(10) //!< Treat unknown-opaque and unknown-transparent as opaque and transparent, respectively, during traversal.
+    NVAPI_RAY_FLAG_FORCE_OMM_2_STATE_EX               = NV_BIT(10), //!< Treat unknown-opaque and unknown-transparent as opaque and transparent, respectively, during traversal.
                                                                     //!< If an instance is flagged with #NVAPI_D3D12_RAYTRACING_INSTANCE_FLAG_DISABLE_OMMS_EX, that takes precedence over this flag.
 } NVAPI_RAY_FLAG_EX;
 
 #endif // defined(__cplusplus) && defined(__d3d12_h__) && defined(__ID3D12GraphicsCommandList4_INTERFACE_DEFINED__)
-
-/////////////////////////////////////////////////////////////////////////
-// Video Input Output (VIO) API
-/////////////////////////////////////////////////////////////////////////
 
 
 
@@ -23513,9 +23826,32 @@ typedef struct _NV_DISPLAY_DRIVER_INFO
     NvU32 reserved                            : 27;   //!< Reserved for future use.
 } NV_DISPLAY_DRIVER_INFO_V1;
 
+typedef struct _NV_DISPLAY_DRIVER_INFO_V2
+{
+    NvU32 version;                                    //!< Structure Version.
+    NvU32 driverVersion;                              //!< Contains the driver version after successful return.
+    NvAPI_ShortString szBuildBranch;                  //!< Contains the driver-branch string after successful return.
+    NvU32 bIsDCHDriver                        : 1;    //!< Contains the driver DCH status after successful return.
+                                                      //!< Value of 1 means that this is DCH driver.
+                                                      //!< Value of 0 means that this is not a DCH driver (NVAPI may be unable to query the DCH status of the driver due to some registry API errors, in that case the API will return with NVAPI_ERROR)
+    NvU32 bIsNVIDIAStudioPackage              : 1;    //!< On successful return, this field provides information about whether the installed driver is from an NVIDIA Studio Driver package.
+                                                      //!< Value of 1 means that this driver is from the NVIDIA Studio Driver package.
+    NvU32 bIsNVIDIAGameReadyPackage           : 1;    //!< On successful return, this field provides information about whether the installed driver is from an NVIDIA Game Ready Driver package.
+                                                      //!< Value of 1 means that this driver is from the NVIDIA Game Ready Driver package.
+    NvU32 bIsNVIDIARTXProductionBranchPackage : 1;    //!< On successful return, this field confirms whether the installed driver package is from an NVIDIA RTX Enterprise Production Branch which offers ISV certifications, long life-cycle support, regular security updates, and access to the same functionality as corresponding NVIDIA Studio Driver Packages (i.e., of the same driver version number).
+                                                      //!< Value of 1 means that this driver is from the NVIDIA RTX Enterprise Production Branch package.
+    NvU32 bIsNVIDIARTXNewFeatureBranchPackage : 1;    //!< On successful return, this field confirms whether the installed driver package is from an NVIDIA RTX New Feature Branch.
+                                                      //!< This driver typically gives access to new features, bug fixes, new operating system support, and other driver enhancements offered between NVIDIA RTX Enterprise Production Branch releases. Support duration for NVIDIA RTX New Feature Branches is shorter than that for NVIDIA RTX Enterprise Production Branches.
+                                                      //!< Value of 1 means that this driver is from the NVIDIA RTX New Feature Branch package.
+    NvU32 reserved                            : 27;   //!< Reserved for future use.
+    NvAPI_ShortString szBuildBaseBranch;              //!< (OUT) Contains the driver base branch string after successful return.
+    NvU32 reservedEx;                                 //!< Reserved for future use
+} NV_DISPLAY_DRIVER_INFO_V2;
+
 #define NV_DISPLAY_DRIVER_INFO_VER1             MAKE_NVAPI_VERSION(NV_DISPLAY_DRIVER_INFO_V1, 1)
-typedef NV_DISPLAY_DRIVER_INFO_V1               NV_DISPLAY_DRIVER_INFO;
-#define NV_DISPLAY_DRIVER_INFO_VER              NV_DISPLAY_DRIVER_INFO_VER1
+#define NV_DISPLAY_DRIVER_INFO_VER2             MAKE_NVAPI_VERSION(NV_DISPLAY_DRIVER_INFO_V2, 2)
+typedef NV_DISPLAY_DRIVER_INFO_V2               NV_DISPLAY_DRIVER_INFO;
+#define NV_DISPLAY_DRIVER_INFO_VER              NV_DISPLAY_DRIVER_INFO_VER2
 
 ///////////////////////////////////////////////////////////////////////////////
 //
