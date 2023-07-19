@@ -1,0 +1,116 @@
+---
+name: Update
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [master]
+  schedule:
+    - cron: '0 12 * * *'  # every day at noon
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Checkout sdk
+        uses: actions/checkout@v3
+        with:
+          ref: sdk
+          path: sdk
+          persist-credentials: false  # otherwise, the token used is the GITHUB_TOKEN, instead of the personal token
+          fetch-depth: 0  # otherwise, will fail to push refs to dest repo
+
+      - name: Parse downloads
+        run: |
+          base_url="https://download.nvidia.com/XFree86/nvapi-open-source-sdk"
+          
+          # get all href within span class='file'
+          downloads_page=$(curl -s "${base_url}/")
+          echo $downloads_page | \
+            grep -Eo "<span class='file'><a href='[^']*" | sed -e "s/<span class='file'><a href='//" | \
+            paste -d, - <(echo $downloads_page | grep -Eo "<span class='date'>[^<]*" | sed -e "s/<span class='date'>//") > downloads.txt
+          cat downloads.txt
+          
+          mkdir -p temp
+          
+          # git config
+          cd ./sdk
+          git config --local user.email "${{ secrets.GH_BOT_EMAIL }}"
+          git config --local user.name "${{ secrets.GH_BOT_NAME }}"
+          cd ../temp
+          
+          # for each download, get the version (first part before -), then check if a matching tag exists in this repo
+          while read -r line; do
+            tar_file=$(echo $line | cut -d',' -f1)
+            archive_name=$(echo $line | cut -d'.' -f1)
+            version=$(echo $line | cut -d'-' -f1)
+            date=$(echo $line | cut -d',' -f2)
+            echo "tar_file=$tar_file"
+            echo "version=$version"
+            echo "date=$date"
+            echo "---------------"
+            if git show-ref --tags $version --quiet; then
+              echo "$version tag exists, skipping"
+            else
+              echo "$version tag doesn't exist or error in command"
+
+              # move .git directory
+              mv ../sdk/.git ../temp_git
+
+              # remove all files
+              rm -f -r ../sdk/*
+              rm -f ../sdk/.keep
+
+              # move .git directory back
+              mv ../temp_git ../sdk/.git
+
+              # download tar
+              wget -q --show-progress --progress=bar:force:noscroll -O $version.tar ${base_url}/$tar_file
+              # extract tar
+              tar -xf $version.tar --strip-components=1
+
+              # remove tar
+              rm -f $version.tar
+          
+              # Find all the files in the extracted files and store them in an array
+              readarray -d '' tar_files < <(find . -type f -print0)
+
+              # Iterate over each file
+              # if the archive name is part of a directory name, rename it (removing the archive name)
+              # copy the file to the sdk directory
+              for file in "${tar_files[@]}"; do
+                echo "file=$file"
+                # remove archive_name/ from the directory it may occur multiple times
+                new_file=$(echo $file | sed -e "s/$archive_name\///g")
+                mkdir -p "../sdk/$(dirname "$new_file")"
+                mv -f "$file" "../sdk/$new_file"
+              done
+
+              # list files
+              ls -a ../sdk
+
+              if [ ${{ github.event_name }} != 'pull_request' ]; then
+                echo "this is not a pull request, so we will attempt to update the sdk branch"
+                cd ../sdk
+
+                # add, commit, tag, push (with token/password/authentication)
+                git add .
+                git commit -m "${version}"
+                git tag $version
+                git push "https://oauth2:${{ secrets.GH_BOT_TOKEN }}@github.com/${{ github.repository }}.git" sdk $version
+          
+                cd ../temp
+              fi
+            fi
+          done < ../downloads.txt
