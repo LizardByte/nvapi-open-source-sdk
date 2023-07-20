@@ -60,9 +60,12 @@ jobs:
             echo "version=$version"
             echo "date=$date"
             echo "---------------"
+            cd ../sdk  # change directory to sdk to ensure we are in the correct git repo
             if git show-ref --tags $version --quiet; then
               echo "$version tag exists, skipping"
+              cd ../temp  # change directory back to temp, since we are using relative paths
             else
+              cd ../temp  # change directory back to temp, since we are using relative paths
               echo "$version tag doesn't exist or error in command"
 
               # move .git directory
