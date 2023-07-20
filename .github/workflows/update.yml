@@ -60,60 +60,66 @@ jobs:
             echo "version=$version"
             echo "date=$date"
             echo "---------------"
+
+            # check if tag exists
             cd ../sdk  # change directory to sdk to ensure we are in the correct git repo
             if git show-ref --tags $version --quiet; then
-              echo "$version tag exists, skipping"
-              cd ../temp  # change directory back to temp, since we are using relative paths
-            else
-              cd ../temp  # change directory back to temp, since we are using relative paths
-              echo "$version tag doesn't exist or error in command"
-
-              # move .git directory
-              mv ../sdk/.git ../temp_git
-
-              # remove all files
-              rm -f -r ../sdk/*
-              rm -f ../sdk/.keep
-
-              # move .git directory back
-              mv ../temp_git ../sdk/.git
-
-              # download tar
-              wget -q --show-progress --progress=bar:force:noscroll -O $version.tar ${base_url}/$tar_file
-              # extract tar
-              tar -xf $version.tar --strip-components=1
-
-              # remove tar
-              rm -f $version.tar
-          
-              # Find all the files in the extracted files and store them in an array
-              readarray -d '' tar_files < <(find . -type f -print0)
-
-              # Iterate over each file
-              # if the archive name is part of a directory name, rename it (removing the archive name)
-              # copy the file to the sdk directory
-              for file in "${tar_files[@]}"; do
-                echo "file=$file"
-                # remove archive_name/ from the directory it may occur multiple times
-                new_file=$(echo $file | sed -e "s/$archive_name\///g")
-                mkdir -p "../sdk/$(dirname "$new_file")"
-                mv -f "$file" "../sdk/$new_file"
-              done
-
-              # list files
-              ls -a ../sdk
-
               if [ ${{ github.event_name }} != 'pull_request' ]; then
-                echo "this is not a pull request, so we will attempt to update the sdk branch"
-                cd ../sdk
-
-                # add, commit, tag, push (with token/password/authentication)
-                git add .
-                git commit -m "${version}"
-                git tag $version
-                git push "https://oauth2:${{ secrets.GH_BOT_TOKEN }}@github.com/${{ github.repository }}.git" sdk $version
-          
-                cd ../temp
+                echo "$version tag exists, skipping"
+                continue
+              else
+                echo "$version tag exists, not skipping since this is a pull request"
               fi
+            else
+              echo "$version tag doesn't exist"
+            fi
+            cd ../temp  # change directory back to temp, since we are using relative paths
+
+            # move .git directory
+            mv ../sdk/.git ../temp_git
+
+            # remove all files
+            rm -f -r ../sdk/*
+            rm -f ../sdk/.keep
+
+            # move .git directory back
+            mv ../temp_git ../sdk/.git
+
+            # download tar
+            wget -q --show-progress --progress=bar:force:noscroll -O $version.tar ${base_url}/$tar_file
+            # extract tar
+            tar -xf $version.tar --strip-components=1
+
+            # remove tar
+            rm -f $version.tar
+        
+            # Find all the files in the extracted files and store them in an array
+            readarray -d '' tar_files < <(find . -type f -print0)
+
+            # Iterate over each file
+            # if the archive name is part of a directory name, rename it (removing the archive name)
+            # move the file to the sdk directory
+            for file in "${tar_files[@]}"; do
+              echo "file=$file"
+              # remove archive_name/ from the directory it may occur multiple times
+              new_file=$(echo $file | sed -e "s/$archive_name\///g")
+              mkdir -p "../sdk/$(dirname "$new_file")"
+              mv -f "$file" "../sdk/$new_file"
+            done
+
+            # list files
+            ls -a ../sdk
+
+            if [ ${{ github.event_name }} != 'pull_request' ]; then
+              echo "this is not a pull request, so we will attempt to update the sdk branch"
+              cd ../sdk
+
+              # add, commit, tag, push (with token/password/authentication)
+              git add .
+              git commit -m "${version}"
+              git tag $version
+              git push "https://oauth2:${{ secrets.GH_BOT_TOKEN }}@github.com/${{ github.repository }}.git" sdk $version
+        
+              cd ../temp
             fi
           done < ../downloads.txt
