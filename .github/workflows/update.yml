@@ -34,22 +34,23 @@ jobs:
       - name: Parse downloads
         run: |
           base_url="https://download.nvidia.com/XFree86/nvapi-open-source-sdk"
-          
+
           # get all href within span class='file'
           downloads_page=$(curl -s "${base_url}/")
           echo $downloads_page | \
             grep -Eo "<span class='file'><a href='[^']*" | sed -e "s/<span class='file'><a href='//" | \
-            paste -d, - <(echo $downloads_page | grep -Eo "<span class='date'>[^<]*" | sed -e "s/<span class='date'>//") > downloads.txt
+            paste -d, - <(echo $downloads_page | grep -Eo "<span class='date'>[^<]*" | \
+              sed -e "s/<span class='date'>//") > downloads.txt
           cat downloads.txt
-          
+
           mkdir -p temp
-          
+
           # git config
           cd ./sdk
           git config --local user.email "${{ secrets.GH_BOT_EMAIL }}"
           git config --local user.name "${{ secrets.GH_BOT_NAME }}"
           cd ../temp
-          
+
           # for each download, get the version (first part before -), then check if a matching tag exists in this repo
           while read -r line; do
             tar_file=$(echo $line | cut -d',' -f1)
@@ -92,7 +93,7 @@ jobs:
 
             # remove tar
             rm -f $version.tar
-        
+
             # Find all the files in the extracted files and store them in an array
             readarray -d '' tar_files < <(find . -type f -print0)
 
@@ -119,7 +120,7 @@ jobs:
               git commit -m "${version}"
               git tag $version
               git push "https://oauth2:${{ secrets.GH_BOT_TOKEN }}@github.com/${{ github.repository }}.git" sdk $version
-        
+
               cd ../temp
             fi
           done < ../downloads.txt
