@@ -1,27 +1,29 @@
-/*****************************************************************************\
-|*                                                                             *|
-|* Copyright (c) 2019-2024, NVIDIA CORPORATION. All rights reserved.           *|
-|*                                                                             *|
-|* Permission is hereby granted, free of charge, to any person obtaining a     *|
-|* copy of this software and associated documentation files (the "Software"),  *|
-|* to deal in the Software without restriction, including without limitation   *|
-|* the rights to use, copy, modify, merge, publish, distribute, sublicense,    *|
-|* and/or sell copies of the Software, and to permit persons to whom the       *|
-|* Software is furnished to do so, subject to the following conditions:        *|
-|*                                                                             *|
-|* The above copyright notice and this permission notice shall be included in  *|
-|* all copies or substantial portions of the Software.                         *|
-|*                                                                             *|
-|* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR  *|
-|* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,    *|
-|* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL    *|
-|* THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER  *|
-|* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING     *| 
-|* FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER         *|
-|* DEALINGS IN THE SOFTWARE.                                                   *|
-|*                                                                             *|
-|*                                                                             *|
-\*****************************************************************************/
+/*********************************************************************************************************\
+|*                                                                                                        *|
+|* SPDX-FileCopyrightText: Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  *|
+|* SPDX-License-Identifier: MIT                                                                           *|
+|*                                                                                                        *|
+|* Permission is hereby granted, free of charge, to any person obtaining a                                *|
+|* copy of this software and associated documentation files (the "Software"),                             *|
+|* to deal in the Software without restriction, including without limitation                              *|
+|* the rights to use, copy, modify, merge, publish, distribute, sublicense,                               *|
+|* and/or sell copies of the Software, and to permit persons to whom the                                  *|
+|* Software is furnished to do so, subject to the following conditions:                                   *|
+|*                                                                                                        *|
+|* The above copyright notice and this permission notice shall be included in                             *|
+|* all copies or substantial portions of the Software.                                                    *|
+|*                                                                                                        *|
+|* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR                             *|
+|* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,                               *|
+|* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL                               *|
+|* THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER                             *|
+|* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING                                *|
+|* FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER                                    *|
+|* DEALINGS IN THE SOFTWARE.                                                                              *|
+|*                                                                                                        *|
+|*                                                                                                        *|
+\*********************************************************************************************************/
+
 #ifndef _NVAPI_INTERFACE_H
 #define _NVAPI_INTERFACE_H
 
@@ -358,11 +360,14 @@ struct NVAPI_INTERFACE_TABLE nvapi_interface_table[] =
     { "NvAPI_D3D12_SetAsyncFrameMarker", 0x13c98f73 },
     { "NvAPI_D3D12_NotifyOutOfBandCommandQueue", 0x03d6e8cb },
     { "NvAPI_D3D12_SetCreateCommandQueueLowLatencyHint", 0x548c224f },
+    { "NvAPI_D3D12_CreateCubinComputeShaderExV2", 0x299f5fdc },
     { "NvAPI_D3D12_CreateCubinComputeShader", 0x2a2c79e8 },
     { "NvAPI_D3D12_CreateCubinComputeShaderEx", 0x3151211b },
     { "NvAPI_D3D12_CreateCubinComputeShaderWithName", 0x1dc7261f },
     { "NvAPI_D3D12_LaunchCubinShader", 0x5c52bb86 },
     { "NvAPI_D3D12_DestroyCubinComputeShader", 0x7fb785ba },
+    { "NvAPI_D3D12_GetCudaMergedTextureSamplerObject", 0x329fe6e0 },
+    { "NvAPI_D3D12_GetCudaIndependentDescriptorObject", 0x0ddac234 },
     { "NvAPI_D3D12_GetCudaTextureObject", 0x80403fc9 },
     { "NvAPI_D3D12_GetCudaSurfaceObject", 0x48f5b2ee },
     { "NvAPI_D3D12_IsFatbinPTXSupported", 0x70c07832 },
